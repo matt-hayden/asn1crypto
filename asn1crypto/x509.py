@@ -1085,6 +1085,25 @@ class Name(Choice):
                         self._native[field_name] = type_val['value']
         return self._native
 
+    def asdict(self, dict_factory=OrderedDict):
+        data = dict_factory()
+        last_field = None
+        for rdn in self.chosen:
+            for type_val in rdn:
+                field_name = type_val['type'].human_friendly
+                native_value = self._recursive_humanize(type_val['value'])
+                last_field = field_name
+                if field_name in data:
+                    data[field_name] = [data[field_name]]
+                    data[field_name].append(native_value)
+                else:
+                    data[field_name] = native_value
+        if last_field == 'Country':
+            return dict_factory(reversed(data.items()))
+        else:
+            return data
+
+
     @property
     def human_friendly(self):
         """
@@ -1093,35 +1112,10 @@ class Name(Choice):
         """
 
         if self._human_friendly is None:
-            data = OrderedDict()
-            last_field = None
-            for rdn in self.chosen:
-                for type_val in rdn:
-                    field_name = type_val['type'].human_friendly
-                    last_field = field_name
-                    if field_name in data:
-                        data[field_name] = [data[field_name]]
-                        data[field_name].append(type_val['value'])
-                    else:
-                        data[field_name] = type_val['value']
-            to_join = []
-            keys = data.keys()
-            if last_field == 'Country':
-                keys = reversed(list(keys))
-            for key in keys:
-                value = data[key]
-                native_value = self._recursive_humanize(value)
-                to_join.append('%s: %s' % (key, native_value))
-
-            has_comma = False
-            for element in to_join:
-                if element.find(',') != -1:
-                    has_comma = True
-                    break
-
+            data = self.asdict()
+            has_comma = any(',' in v for v in data.values())
             separator = ', ' if not has_comma else '; '
-            self._human_friendly = separator.join(to_join[::-1])
-
+            self._human_friendly = separator.join("%s: %s" % (key, value) for key, value in data.items())
         return self._human_friendly
 
     def _recursive_humanize(self, value):
